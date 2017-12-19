@@ -330,7 +330,7 @@ contains
 !     call bml_print_matrix("Smat",saux_bml,0,6,0,6)
 
     !Reseting zmat to make it bml dense. Same reason as before.
-    call bml_deallocate(zmat_bml)
+    if(bml_get_N(zmat_bml) > 0) call bml_deallocate(zmat_bml)
     call bml_zero_matrix(BML_MATRIX_DENSE,bml_element_real,dp,norb,norb,zmat_bml)
 
     !Auxiliary matrices.
