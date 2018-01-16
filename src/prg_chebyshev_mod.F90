@@ -451,8 +451,9 @@ contains
 
        if(verbose >= 4)mls_I = mls()
        threshold1 =  threshold*(athr*real(i-1) + (1.0_dp-athr))
-
+  !     threshold1 =  0.1*(1.0_dp - exp(-0.1*real(i-1))) + threshold
        call bml_multiply(x_bml,tn_bml,tnp1_bml,2.0_dp,-1.0_dp,threshold1) !T(n+1) = 2xT(n) - T(n-1)
+
        tracesT(i+1) = bml_trace(tnp1_bml)
 
        if(verbose >= 4)then
@@ -465,10 +466,11 @@ contains
        if(trkfunc)tnp1 = 2.0_dp*domain0*tn - tnp1
 
        call bml_add_deprecated(1.0_dp,aux_bml,mycoeff,tnp1_bml,threshold) !Rho(n+1) = Rho(n) + b(n+1)*T(n+1)
-       if(verbose >=3)domain = domain + mycoeff*tnp1
+       if(trkfunc)domain = domain + mycoeff*tnp1
 
        call bml_copy(tn_bml,tnm1_bml)
        call bml_copy(tnp1_bml,tn_bml)
+
        if(trkfunc)then
           tnm1 = tn
           tn = tnp1
@@ -491,7 +493,8 @@ contains
        close(io)
     endif
 
-    if(verbose >= 2) then
+    if(trkfunc) then
+       write(*,*)"Size dom",size(domain, dim=1)
        maxder = absmaxderivative(domain,de)
        write(*,*)"TargetKbt =",kbt
        write(*,*)"AbsMaxDerivative =",maxder
@@ -800,11 +803,13 @@ contains
   !!
   real(dp) function absmaxderivative(func,de)
 
+    implicit none
     real(dp), intent(in) :: func(:), de
     integer :: j
 
     absmaxderivative = -10000.0d0
 
+    write(*,*)"size(func, dim=1)",size(func, dim=1)
     do j=1,size(func, dim=1)-1
        if(abs(func(j+1) - func(j))/de > absmaxderivative) &
             absmaxderivative = abs(func(j+1) - func(j))/de

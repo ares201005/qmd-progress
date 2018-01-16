@@ -216,6 +216,7 @@ contains
     character(20) :: bml_type
     integer :: N, M, i
 
+    write(*,*)"Inside prg_sp2_fermi_init_norecs ..."
     bml_type = bml_get_type(h_bml)
     N = bml_get_N(h_bml)
     M = bml_get_M(h_bml)

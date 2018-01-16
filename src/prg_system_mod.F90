@@ -629,7 +629,7 @@ contains
 
   end subroutine prg_parse_system
 
-  !>  Write system in .xyz, .dat or pdb file.
+  !>  Write system in .xyz, .dat, .fdf, .lmp (lammps) or .pdb file.
   !! \param system System to be constructed.
   !! \param filename File name.
   !! \param extension Extension of the file.
@@ -806,6 +806,39 @@ contains
        enddo
 
        close(io_unit)
+
+     case("fdf")
+
+        !! For fdf format see the SIESTA manual.
+        io_name=trim(filename)//".fdf"
+        call prg_open_file(io_unit,io_name)
+        write(io_unit,*)'NumberOfAtoms',          system%nats
+        write(io_unit,*)'NumberOfSpecies',             system%nsp
+        write(io_unit,*)''
+        write(io_unit,*)'LatticeConstant         1.0000 Ang'
+        write(io_unit,*)''
+        write(io_unit,*)'%block LatticeVectors'
+        write(io_unit,'(3F15.5)')system%lattice_vector(1,1),system%lattice_vector(1,2),system%lattice_vector(1,3)
+        write(io_unit,'(3F15.5)')system%lattice_vector(2,1),system%lattice_vector(2,2),system%lattice_vector(2,3)
+        write(io_unit,'(3F15.5)')system%lattice_vector(3,1),system%lattice_vector(3,2),system%lattice_vector(3,3)
+        write(io_unit,*)'%endblock LatticeVectors'
+        write(io_unit,*)''
+        write(io_unit,*)'%block ChemicalSpeciesLabel'
+        do i=1,system%nsp
+          write(io_unit,*) i, system%atomic_number(i), system%symbol(i),  '    # Species index, atomic number, species label'
+        enddo
+        write(io_unit,*)'%endblock ChemicalSpeciesLabel'
+        write(io_unit,*)' '
+        write(io_unit,*)'AtomicCoordinatesFormat  Ang'
+        write(io_unit,*)'%block AtomicCoordinatesAndAtomicSpecies'
+        do i=1,system%nats
+          write(io_unit,"(3F15.5,I10)")system%coordinate(1,i)&
+               ,system%coordinate(2,i),system%coordinate(3,i),system%spindex(i)
+        enddo
+        write(io_unit,*)'%endblock AtomicCoordinatesAndAtomicSpecies'
+        write(io_unit,*)' '
+
+        close(io_unit)
 
     case default
 
