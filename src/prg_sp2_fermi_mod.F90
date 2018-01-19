@@ -11,6 +11,7 @@ module prg_sp2_fermi_mod
   use prg_normalize_mod
   use prg_timer_mod
   use prg_parallel_mod
+  use prg_extras_mod
 
   implicit none
 
@@ -180,10 +181,10 @@ contains
 
   !> Truncated SP2 prg_initialization.
   !! This routine also gives back the Number of SP2 recursive steps
-  !! that gets a Pseudo-Fermi distribution with a Temperature close to
-  !! the target Temperature which is input using parameter beta  = (1/KbT).
+  !! that gets a Pseudo-Fermi distribution with a temperature close to
+  !! the target temperature which is entered using parameter beta  = (1/KbT).
   !! \param h_bml Input Hamiltonian matrix.
-  !! \param nsteps Number of sp2 iterations.
+  !! \param nsteps Output number of sp2 iterations.
   !! \param nocc Number of occupied states.
   !! \param tscale Temperature rescaling factor.
   !! \param threshold Threshold for multiplication.
@@ -195,8 +196,9 @@ contains
   !! \param h1 Output temperature-scaled minimum gershgorin bound.
   !! \param hN Output temperature-scaled maximum gershgorin bound.
   !! \param sgnlist SP2 sequence
+  !! \param verbose Optional parameter for verbosity.
   subroutine prg_sp2_fermi_init_norecs(h_bml, nsteps, nocc, tscale, threshold, &
-     occErrLimit, traceLimit, x_bml, mu, beta, h1, hN, sgnlist)
+     occErrLimit, traceLimit, x_bml, mu, beta, h1, hN, sgnlist, verbose)
 
     implicit none
 
@@ -215,8 +217,10 @@ contains
     logical :: firstTime
     character(20) :: bml_type
     integer :: N, M, i
+    integer, optional :: verbose
 
-    write(*,*)"Inside prg_sp2_fermi_init_norecs ..."
+    if(present(verbose) .and. verbose >= 1) write(*,*)"Inside prg_sp2_fermi_init_norecs ..."
+
     bml_type = bml_get_type(h_bml)
     N = bml_get_N(h_bml)
     M = bml_get_M(h_bml)
@@ -312,14 +316,15 @@ contains
 
       end do
 
-      !Get mu and T
+      ! Write probe function into a file (only for debugging purposes)
       ! do i = 1,1000
       !   write(1000,*)gbnd(1) + ((gbnd(2)-gbnd(1))/1000.0_dp)*i,probe(i)
       ! enddo
 
-      ! maxder = absmaxderivative(probe,0.001_dp)
-      ! write(*,*)"kbT = 1/(4*AbsMaxDerivative) =",(gbnd(2)-gbnd(1))/(4.0_dp*maxder)
-      ! write(*,*)"T =", (gbnd(2)-gbnd(1))/(4.0_dp*maxder*8.61734215D-5)
+      if(present(verbose) .and. verbose >= 1) then
+        write(*,*)"beta = ",beta
+        write(*,*)"kbT = ",1.0_dp/beta
+      endif
 
       firstTime = .false.
       traceX0 = bml_trace(x_bml)
@@ -341,7 +346,12 @@ contains
     ! I = I - X0
     call bml_add_deprecated(1.0_dp, i_bml, -1.0_dp, x_bml, threshold)
     ! tmp = X0*I
+    call bml_print_matrix("x_bml",x_bml,1,4,1,4)
+    call bml_print_matrix("i_bml",i_bml,1,4,1,4)
     call bml_multiply(x_bml, i_bml, tmp_bml, 1.0_dp, 0.0_dp, threshold)
+
+    call bml_print_matrix("tmp_bml",tmp_bml,1,4,1,4)
+
     traceX = bml_trace(tmp_bml)
     traceX1 = bml_trace(x1_bml)
     if (abs(traceX) .gt. traceLimit) then
@@ -389,7 +399,7 @@ contains
     type(bml_matrix_t) :: x2_bml, dx_bml, i_bml
     real(dp), allocatable :: trace(:), gbnd(:)
     real(dp) :: sfactor, occErr, traceX0, traceX2, traceDX, lambda
-    real(dp) :: a, b
+    real(dp) :: a, b, mlsI
     integer :: iter, i, N, M
     character(20) :: bml_type
 
@@ -411,6 +421,7 @@ contains
       call bml_copy(h_bml, x_bml)
       call prg_normalize_fermi(x_bml, h1, hN, mu)
 
+      mlsI = mls()
       do i = 1, nsteps
         call bml_multiply_x2(x_bml, x2_bml, threshold, trace)
         traceX0 = trace(1)
@@ -424,6 +435,7 @@ contains
         endif
 
       end do
+      write(*,*)"RECTIME", mls() - mlsI, mu
 
       traceX0 = bml_trace(x_bml)
       occErr = abs(nocc - traceX0)
@@ -443,7 +455,7 @@ contains
       mu = mu + lambda
 
     end do
-
+      write(*,*)"MUITER",iter, threshold, mu, occErr
     ! Correction for occupation
     call bml_add_deprecated(1.0_dp, x_bml, lambda, dx_bml, threshold)
 
