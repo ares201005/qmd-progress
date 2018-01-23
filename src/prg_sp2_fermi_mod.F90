@@ -205,9 +205,9 @@ contains
     type(bml_matrix_t), intent(inout) :: x_bml
     integer, intent(inout) :: nsteps
     integer, intent(inout) :: sgnlist(:)
-    real(dp), intent(in) :: nocc, tscale, threshold
+    real(dp), intent(in) :: nocc, threshold
     real(dp), intent(in) :: occErrLimit, traceLimit
-    real(dp), intent(inout) :: mu, beta, h1, hN
+    real(dp), intent(inout) :: mu, beta, h1, hN, tscale
 
     type(bml_matrix_t) :: x1_bml, x2_bml, tmp_bml, i_bml
     real(dp) :: lambda, occErr, sfactor, maxder
@@ -232,6 +232,7 @@ contains
     mu = 0.5 * (gbnd(2) + gbnd(1))
     h1 = tscale * gbnd(1)
     hN = tscale * gbnd(2)
+    nsteps = 1000
 
     lambda = 0.0_dp
     occErr = 1.0_dp
@@ -261,7 +262,7 @@ contains
       sfactor = -1.0_dp / (hN - h1)
       call bml_scale(sfactor, x1_bml)
 
-      do i = 1, nsteps
+      do i = 1, 1000
         call bml_multiply_x2(x_bml, x2_bml, threshold, trace)
 
         probe_2(:) = probe(:)*probe(:)
@@ -307,10 +308,15 @@ contains
         endif
 
         maxder = absmaxderivative(probe,0.001_dp)
-        beta = (4.0_dp*maxder)/(gbnd(2)-gbnd(1))
+!        beta = (4.0_dp*maxder)/(tscale*(gbnd(2)-gbnd(1)))
         if(beta > beta0) then
            nsteps = i
+           tscale = (4.0_dp*maxder)/(beta*(gbnd(2)-gbnd(1)))
            exit
+        endif
+        if(i == 1000) then
+          write(*,*)"prg_sp2_fermi_init_norecs not converging in beta ..."
+          stop
         endif
 
       end do
@@ -319,11 +325,6 @@ contains
       ! do i = 1,1000
       !   write(1000,*)gbnd(1) + ((gbnd(2)-gbnd(1))/1000.0_dp)*i,probe(i)
       ! enddo
-
-      if(present(verbose) .and. verbose >= 1) then
-        write(*,*)"beta = ",beta
-        write(*,*)"kbT = ",1.0_dp/beta
-      endif
 
       firstTime = .false.
       traceX0 = bml_trace(x_bml)
@@ -336,6 +337,14 @@ contains
         lambda = 0.0_dp
       end if
       mu = mu + lambda
+
+      if(present(verbose) .and. verbose >= 1) then
+        write(*,*)"beta = ",beta
+        write(*,*)"kbT = ",1.0_dp/beta
+        write(*,*)"mu = ",mu
+        write(*,*)"occErr = ",occErr
+      endif
+
     end do
 
     deallocate(trace)
