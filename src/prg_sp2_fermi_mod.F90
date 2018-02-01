@@ -210,8 +210,8 @@ contains
     real(dp), intent(inout) :: mu, beta, h1, hN, tscale
 
     type(bml_matrix_t) :: x1_bml, x2_bml, tmp_bml, i_bml
-    real(dp) :: lambda, occErr, sfactor, maxder
-    real(dp) :: traceX0, traceX1, traceX2, traceX, beta0
+    real(dp) :: lambda, occErr, sfactor, maxder, maxderOld
+    real(dp) :: traceX0, traceX1, traceX2, traceX, beta0, betaOld
     real(dp), allocatable :: gbnd(:), trace(:), probe(:), probe_2(:)
     logical :: firstTime
     character(20) :: bml_type
@@ -232,7 +232,8 @@ contains
     mu = 0.5 * (gbnd(2) + gbnd(1))
     h1 = tscale * gbnd(1)
     hN = tscale * gbnd(2)
-    nsteps = 1000
+!    nsteps = 1000
+    maxder = 0.0_dp
 
     lambda = 0.0_dp
     occErr = 1.0_dp
@@ -249,6 +250,9 @@ contains
 
     do while (occErr .gt. occErrLimit)
 
+      h1 = tscale * gbnd(1)
+      hN = tscale * gbnd(2)
+
       call bml_copy(h_bml, x_bml)
       call prg_normalize_fermi(x_bml, h1, hN, mu)
 
@@ -261,9 +265,13 @@ contains
       call bml_copy(i_bml, x1_bml)
       sfactor = -1.0_dp / (hN - h1)
       call bml_scale(sfactor, x1_bml)
+      probe = probe*tscale
 
-      do i = 1, 1000
+      do i = 1, nsteps
         call bml_multiply_x2(x_bml, x2_bml, threshold, trace)
+
+        betaOld = beta
+        maxderOld = maxder
 
         probe_2(:) = probe(:)*probe(:)
 
@@ -308,10 +316,12 @@ contains
         endif
 
         maxder = absmaxderivative(probe,0.001_dp)
-!        beta = (4.0_dp*maxder)/(tscale*(gbnd(2)-gbnd(1)))
+        beta = tscale*(4.0_dp*maxder)/((gbnd(2)-gbnd(1)))
+
         if(beta > beta0) then
-           nsteps = i
-           tscale = (4.0_dp*maxder)/(beta*(gbnd(2)-gbnd(1)))
+!           nsteps = i-1
+          nsteps = i
+           tscale = (beta0*(gbnd(2)-gbnd(1)))/(4.0_dp*maxder)
            exit
         endif
         if(i == 1000) then
@@ -322,9 +332,9 @@ contains
       end do
 
       ! Write probe function into a file (only for debugging purposes)
-      ! do i = 1,1000
-      !   write(1000,*)gbnd(1) + ((gbnd(2)-gbnd(1))/1000.0_dp)*i,probe(i)
-      ! enddo
+      do i = 1,1000
+        write(1000,*)gbnd(1) + ((gbnd(2)-gbnd(1))/1000.0_dp)*i,probe(i)
+      enddo
 
       firstTime = .false.
       traceX0 = bml_trace(x_bml)
@@ -343,6 +353,8 @@ contains
         write(*,*)"kbT = ",1.0_dp/beta
         write(*,*)"mu = ",mu
         write(*,*)"occErr = ",occErr
+        write(*,*)"nsteps = ",nsteps
+        write(*,*)"tscale = ",tscale
       endif
 
     end do
